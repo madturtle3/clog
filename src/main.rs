@@ -1,73 +1,70 @@
-use std::fmt::Display;
+mod cloglib {
+    use std::fs;
 
-#[derive(PartialEq, Debug)]
-enum RecordTypes {
-    HEADER,
-    RECORD,
-    COMMAND,
-}
-
-impl From<char> for RecordTypes {
-    fn from(input:char) -> RecordTypes {
-        match input {
-            '!' => RecordTypes::HEADER,
-            '*' => RecordTypes::RECORD,
-            '$' => RecordTypes::COMMAND,
-            _ => panic!("Incorrect header type found in log file"),
-        }
+    const LOGFILE: &str = "log";
+    #[derive(Debug)]
+    pub enum Record {
+        HEADER { columns: Vec<String> },
+        RECORD { fields: Vec<String> },
+        UPDATE { setting: String, value: String },
+        COMMENT { comment: String },
     }
-}
-impl Into<char> for RecordTypes {
-    fn into(self) -> char {
-        match self {
-            RecordTypes::HEADER => '!',
-            RecordTypes::RECORD => '*',
-            RecordTypes::COMMAND => '$',
-        }
-    }
-}
-#[derive(Debug)]
-struct Record {
-    record_type: RecordTypes,
-    pub fields: Vec<String>,
-}
-impl Record {
-    fn new(record_type: RecordTypes) -> Record {
-        let fields: Vec<String> = Vec::new();
-        Record {
-            record_type,
-            fields,
-        }
-    }
-    fn from_file() -> Log {
-        let log_string: String = std::fs::read_to_string("log").expect("Could not read log in");
-        let mut log: Log = Log::new();
-        for line in log_string.split("\n") {
-            let record_type: RecordTypes = RecordTypes::from(line.chars().nth(0).unwrap());
-            let mut record: Record = Record::new(record_type);
-            for (i,field) in line.split(" ").enumerate() {
-                if i > 0 {
-                record.fields.push(field.to_string());
+    impl From<&str> for Record {
+        fn from(line: &str) -> Record {
+            let record_indicator = line.chars().nth(0).unwrap();
+            let fields: Vec<String> = line.split(" ").map(String::from).collect();
+            let fields = fields[1..fields.len()].to_owned();
+            match record_indicator {
+                '!' => Record::HEADER { columns: fields },
+                '*' => Record::RECORD { fields: fields },
+                '$' => {
+                    if fields.len() == 2 {
+                        Record::UPDATE {
+                            setting: fields[0].clone(),
+                            value: fields[1].clone(),
+                        }
+                    } else {
+                        panic!("Updater record only can take 2 fields, 3 given.");
+                    }
                 }
+                '#' => Record::COMMENT {
+                    comment: fields.join(" ").to_string(),
+                }, // RESERVED FOR COMMENTS
+                _ => panic!("Incorrect record indicator {}", record_indicator),
             }
-            log.push(record);
         }
-        log
     }
-}
-impl Display for Record {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"{}",self.fields.join("\t"))
+    impl Into<String> for Record {
+        fn into(self: Record) -> String {
+            match self {
+                Record::HEADER { columns } => "! ".to_owned() + &columns.join(" "),
+                Record::UPDATE { setting, value } => "* ".to_owned() + &setting + &value,
+                Record::RECORD { fields } => "* ".to_owned() + &fields.join(" "),
+                Record::COMMENT { comment } => "# ".to_owned() + &comment,
+            }
+        }
     }
-}
-type Log = Vec<Record>;
-fn print_log(log: &Log, record_type: RecordTypes) {
-    for record in log {
-        println!("{}",record)
+    pub struct Log {
+        pub records: Vec<Record>,
     }
-}
 
+    impl Log {
+        fn new() -> Log {
+            Log {
+                records: Vec::new(),
+            }
+        }
+        pub fn from_file() -> Log {
+            let log_string: String = fs::read_to_string(LOGFILE).expect("Coudl not read file");
+            let mut output: Log = Log::new();
+            for line in log_string.split("\n") {
+                output.records.push(Record::from(line));
+            }
+            output
+        }
+    }
+}
 fn main() {
-    let record: Log = Record::from_file();
-    print_log(&record, RecordTypes::RECORD);
+    let log = cloglib::Log::from_file();
+    dbg!(log.records);
 }
