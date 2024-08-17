@@ -5,8 +5,8 @@ mod cloglib {
     #[derive(Debug)]
     pub enum Record {
         HEADER { columns: Vec<String> },
-        RECORD { fields: Vec<String> },
-        UPDATE { setting: String, value: String },
+        CONTACT { fields: Vec<String> },
+        COMMAND { setting: String, value: String },
         COMMENT { comment: String },
     }
     impl From<&str> for Record {
@@ -16,10 +16,10 @@ mod cloglib {
             let fields = fields[1..fields.len()].to_owned();
             match record_indicator {
                 '!' => Record::HEADER { columns: fields },
-                '*' => Record::RECORD { fields: fields },
+                '*' => Record::CONTACT { fields: fields },
                 '$' => {
                     if fields.len() == 2 {
-                        Record::UPDATE {
+                        Record::COMMAND {
                             setting: fields[0].clone(),
                             value: fields[1].clone(),
                         }
@@ -38,8 +38,8 @@ mod cloglib {
         fn into(self: Record) -> String {
             match self {
                 Record::HEADER { columns } => "! ".to_owned() + &columns.join(" "),
-                Record::UPDATE { setting, value } => "* ".to_owned() + &setting + &value,
-                Record::RECORD { fields } => "* ".to_owned() + &fields.join(" "),
+                Record::COMMAND { setting, value } => "* ".to_owned() + &setting + &value,
+                Record::CONTACT { fields } => "* ".to_owned() + &fields.join(" "),
                 Record::COMMENT { comment } => "# ".to_owned() + &comment,
             }
         }
