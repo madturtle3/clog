@@ -71,7 +71,8 @@ mod cloglib {
     }
 }
 
-fn print_log(log: &Log) { // integrate this all fancy like LATER
+fn print_log(log: &Log) { // integrate this all fancy like LATER 
+    // TODO: Figure out how to make it all align...
     for record in &log.records {
         match record {
             Record::CONTACT { fields } => {
