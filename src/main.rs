@@ -1,3 +1,9 @@
+use cloglib::{Log, Record};
+
+
+/* This module is meant to be self contained and usable outside
+of this program. items specific to the UI or CLI should be created
+outside of this module. */
 mod cloglib {
     use std::fs;
 
@@ -6,7 +12,7 @@ mod cloglib {
     pub enum Record {
         HEADER { columns: Vec<String> },
         CONTACT { fields: Vec<String> },
-        COMMAND { setting: String, value: String },
+        VARSET { setting: String, value: String },
         COMMENT { comment: String },
     }
     impl From<&str> for Record {
@@ -19,7 +25,7 @@ mod cloglib {
                 '*' => Record::CONTACT { fields: fields },
                 '$' => {
                     if fields.len() == 2 {
-                        Record::COMMAND {
+                        Record::VARSET {
                             setting: fields[0].clone(),
                             value: fields[1].clone(),
                         }
@@ -38,7 +44,7 @@ mod cloglib {
         fn into(self: Record) -> String {
             match self {
                 Record::HEADER { columns } => "! ".to_owned() + &columns.join(" "),
-                Record::COMMAND { setting, value } => "* ".to_owned() + &setting + &value,
+                Record::VARSET { setting, value } => "* ".to_owned() + &setting + &value,
                 Record::CONTACT { fields } => "* ".to_owned() + &fields.join(" "),
                 Record::COMMENT { comment } => "# ".to_owned() + &comment,
             }
@@ -64,7 +70,21 @@ mod cloglib {
         }
     }
 }
+
+fn print_log(log: &Log) { // integrate this all fancy like LATER
+    for record in &log.records {
+        match record {
+            Record::CONTACT { fields } => {
+                println!("{}",fields.join("\t"));
+            }
+            Record::HEADER { columns } => {
+                println!("{}",columns.join("\t"));
+            }
+            _ => ()
+        }
+    }
+}
 fn main() {
     let log = cloglib::Log::from_file();
-    dbg!(log.records);
+    print_log(&log);
 }
