@@ -1,12 +1,11 @@
 use cloglib::{Log, Record};
-
+use std::env::args;
 
 /* This module is meant to be self contained and usable outside
 of this program. items specific to the UI or CLI should be created
 outside of this module. */
 mod cloglib {
     use std::fs;
-
     const LOGFILE: &str = "log";
     #[derive(Debug)]
     pub enum Record {
@@ -71,21 +70,55 @@ mod cloglib {
     }
 }
 
-fn print_log(log: &Log) { // integrate this all fancy like LATER 
+fn print_log(log: &Log) {
+    // integrate this all fancy like LATER
     // TODO: Figure out how to make it all align...
+    // get max length of all columns
+    let mut colmaxes: Vec<usize> = Vec::new();
     for record in &log.records {
-        match record {
-            Record::CONTACT { fields } => {
-                println!("{}",fields.join("\t"));
+        // this is cursed and I really don't care
+        let record_max = match record {
+            Record::HEADER { columns } => columns.iter().map(String::len).collect(),
+            Record::CONTACT { fields } => fields.iter().map(String::len).collect(),
+            Record::COMMENT { comment: _ } => Vec::new(),
+            Record::VARSET {
+                setting: _,
+                value: _,
+            } => Vec::new(),
+        };
+        while colmaxes.len() < record_max.len() {
+            colmaxes.push(0);
+        }
+        for x in 0..record_max.len() {
+            if record_max[x] > colmaxes[x] {
+                colmaxes[x] = record_max[x];
             }
-            Record::HEADER { columns } => {
-                println!("{}",columns.join("\t"));
-            }
-            _ => ()
+        }
+    }
+    for record in &log.records {
+        let stringvec = match record {
+            Record::CONTACT { fields } => fields,
+            Record::HEADER { columns } => columns,
+            _ => &Vec::new(),
+        };
+        for (index, field) in stringvec.iter().enumerate() {
+            let padding = colmaxes[index];
+            print!("{:padding$}│", field);
+        }
+        if stringvec.len() != 0 {
+            print!("\n");
         }
     }
 }
 fn main() {
+    let mut arguments: Vec<String> = args().collect();
+    arguments.remove(0);
     let log = cloglib::Log::from_file();
-    print_log(&log);
+    if arguments.len() == 0 {
+        println!("nuh uh u cant do that u need arguments!!!!");
+    } else {
+        if arguments[0] == "list" {
+            print_log(&log);
+        }
+    }
 }
