@@ -102,7 +102,7 @@ fn print_log(log: &Log) {
         if let Some(x) = stringvec {
             for (index, field) in x.iter().enumerate() {
                 let padding = colmaxes[index];
-                print!("{:padding$}│", field);
+                print!(" {:padding$} │", field);
             }
             if x.len() != 0 {
                 print!("\n");
