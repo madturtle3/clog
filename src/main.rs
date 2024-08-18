@@ -1,12 +1,12 @@
-use cloglib::{Log, Record};
-use std::env::args;
+use std::path::PathBuf;
 
+use clap::Parser;
+use cloglib::{Log, Record};
 /* This module is meant to be self contained and usable outside
 of this program. items specific to the UI or CLI should be created
 outside of this module. */
 mod cloglib {
-    use std::fs;
-    const LOGFILE: &str = "log";
+    use std::path::Path;
     #[derive(Debug)]
     pub enum Record {
         HEADER { columns: Vec<String> },
@@ -59,8 +59,8 @@ mod cloglib {
                 records: Vec::new(),
             }
         }
-        pub fn from_file() -> Log {
-            let log_string: String = fs::read_to_string(LOGFILE).expect("Coudl not read file");
+        pub fn from_file<T: AsRef<Path>>(path: T) -> Log {
+            let log_string: String = std::fs::read_to_string(path).expect("Coudl not read file");
             let mut output: Log = Log::new();
             for line in log_string.split("\n") {
                 output.records.push(Record::from(line));
@@ -71,9 +71,6 @@ mod cloglib {
 }
 
 fn print_log(log: &Log) {
-    // integrate this all fancy like LATER
-    // TODO: Figure out how to make it all align...
-    // get max length of all columns
     let mut colmaxes: Vec<usize> = Vec::new();
     for record in &log.records {
         // this is cursed and I really don't care
@@ -97,27 +94,43 @@ fn print_log(log: &Log) {
     }
     for record in &log.records {
         let stringvec = match record {
-            Record::CONTACT { fields } => fields,
-            Record::HEADER { columns } => columns,
-            _ => &Vec::new(),
+            Record::CONTACT { fields } => Some(fields),
+            Record::HEADER { columns } => Some(columns),
+            _ => None,
         };
-        for (index, field) in stringvec.iter().enumerate() {
-            let padding = colmaxes[index];
-            print!("{:padding$}│", field);
-        }
-        if stringvec.len() != 0 {
-            print!("\n");
+
+        if let Some(x) = stringvec {
+            for (index, field) in x.iter().enumerate() {
+                let padding = colmaxes[index];
+                print!("{:padding$}│", field);
+            }
+            if x.len() != 0 {
+                print!("\n");
+            }
         }
     }
 }
+
+#[derive(clap::Subcommand)]
+enum Commands {
+    ///print out the current log
+    List,
+}
+
+#[derive(clap::Parser)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[command(subcommand)]
+    command: Commands,
+    ///file to use for the log
+    #[arg(short = 'o', long = "file", default_value = "hamlog")]
+    file: PathBuf,
+}
 fn main() {
-    let mut arguments: Vec<String> = args().collect();
-    arguments.remove(0);
-    let log = cloglib::Log::from_file();
-    if arguments.len() == 0 {
-        println!("nuh uh u cant do that u need arguments!!!!");
-    } else {
-        if arguments[0] == "list" {
+    let args = Args::parse();
+    let log = Log::from_file(args.file);
+    match args.command {
+        Commands::List => {
             print_log(&log);
         }
     }
