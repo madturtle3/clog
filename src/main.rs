@@ -6,7 +6,7 @@ use cloglib::{Log, Record};
 of this program. items specific to the UI or CLI should be created
 outside of this module. */
 mod cloglib {
-    use std::path::Path;
+    use std::{io::Write, path::Path};
     #[derive(Debug)]
     pub enum Record {
         HEADER { columns: Vec<String> },
@@ -39,13 +39,26 @@ mod cloglib {
             }
         }
     }
-    impl Into<String> for Record {
-        fn into(self: Record) -> String {
+    impl ToString for Record {
+        fn to_string(&self) -> String {
             match self {
                 Record::HEADER { columns } => "! ".to_owned() + &columns.join(" "),
                 Record::VARSET { setting, value } => "* ".to_owned() + &setting + &value,
                 Record::CONTACT { fields } => "* ".to_owned() + &fields.join(" "),
                 Record::COMMENT { comment } => "# ".to_owned() + &comment,
+            }
+        }
+    }
+    impl Record {
+        pub fn to_char(&self) -> char {
+            match self {
+                Self::COMMENT { comment: _ } => '#',
+                Self::CONTACT { fields: _ } => '*',
+                Self::HEADER { columns: _ } => '!',
+                Self::VARSET {
+                    setting: _,
+                    value: _,
+                } => '$',
             }
         }
     }
@@ -67,44 +80,55 @@ mod cloglib {
             }
             output
         }
+        pub fn wrte_log<T: AsRef<Path>>(log: Log,path: T) {
+            let mut fileobj = std::fs::File::create(path).expect("Could not open file for writing");
+            for record in log.records {
+                writeln!(fileobj,"{}\n",record.to_string()).expect("could not write to file!");
+            }
+        }
     }
 }
 
-fn print_log(log: &Log) {
+fn print_log(log: &Log, print_types: &str) {
     let mut colmaxes: Vec<usize> = Vec::new();
     for record in &log.records {
-        // this is cursed and I really don't care
-        let record_max = match record {
-            Record::HEADER { columns } => columns.iter().map(String::len).collect(),
-            Record::CONTACT { fields } => fields.iter().map(String::len).collect(),
-            Record::COMMENT { comment: _ } => Vec::new(),
-            Record::VARSET {
-                setting: _,
-                value: _,
-            } => Vec::new(),
-        };
-        while colmaxes.len() < record_max.len() {
-            colmaxes.push(0);
-        }
-        for x in 0..record_max.len() {
-            if record_max[x] > colmaxes[x] {
-                colmaxes[x] = record_max[x];
+        // so don't have strange margins for non-printed records
+        if print_types.contains(record.to_char()) {
+            let record_max = match record {
+                Record::HEADER { columns } => columns.iter().map(String::len).collect(),
+                Record::CONTACT { fields } => fields.iter().map(String::len).collect(),
+                Record::COMMENT { comment } => [comment.len()].to_vec(),
+                Record::VARSET { setting, value } => [setting.len(), value.len()].to_vec(),
+            };
+            // update length of colmaxes in case
+            // some records have more fields than others
+            while colmaxes.len() < record_max.len() {
+                colmaxes.push(0);
+            }
+            // update maximums
+            for x in 0..record_max.len() {
+                if record_max[x] > colmaxes[x] {
+                    colmaxes[x] = record_max[x];
+                }
             }
         }
     }
+    // actually print out the log here
     for record in &log.records {
-        let stringvec = match record {
-            Record::CONTACT { fields } => Some(fields),
-            Record::HEADER { columns } => Some(columns),
-            _ => None,
-        };
-
-        if let Some(x) = stringvec {
-            for (index, field) in x.iter().enumerate() {
+        if print_types.contains(record.to_char()) {
+            let stringvec = match record {
+                Record::CONTACT { fields } => fields,
+                Record::HEADER { columns } => columns,
+                Record::COMMENT { comment } => &[comment.to_string()].to_vec(),
+                Record::VARSET { setting, value } => {
+                    &[setting.to_string(), value.to_string()].to_vec()
+                }
+            };
+            for (index, field) in stringvec.iter().enumerate() {
                 let padding = colmaxes[index];
                 print!(" {:padding$} │", field);
             }
-            if x.len() != 0 {
+            if stringvec.len() != 0 {
                 print!("\n");
             }
         }
@@ -123,7 +147,7 @@ struct Args {
     #[command(subcommand)]
     command: Commands,
     ///file to use for the log
-    #[arg(short = 'o', long = "file", default_value = "hamlog")]
+    #[arg(short = 'f', long = "file", default_value = "hamlog")]
     file: PathBuf,
 }
 fn main() {
@@ -131,7 +155,7 @@ fn main() {
     let log = Log::from_file(args.file);
     match args.command {
         Commands::List => {
-            print_log(&log);
+            print_log(&log, "!*");
         }
     }
 }
