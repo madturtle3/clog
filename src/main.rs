@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-
-use clap::Parser;
+use std::{io, path::PathBuf};
+use clap::{Parser,CommandFactory};
+use clap_complete::{aot::Bash, generate};
 use cloglib::{Log, Record};
 /* This module is meant to be self contained and usable outside
 of this program. items specific to the UI or CLI should be created
@@ -139,6 +139,8 @@ fn print_log(log: &Log, print_types: &str) {
 enum Commands {
     ///print out the current log
     List,
+    /// create a bash completion script
+    SetupComplete,
 }
 
 #[derive(clap::Parser)]
@@ -156,6 +158,9 @@ fn main() {
     match args.command {
         Commands::List => {
             print_log(&log, "!*");
+        }
+        Commands::SetupComplete => {
+            generate(Bash, &mut Args::command(), clap::crate_name!(), &mut io::stdout())
         }
     }
 }
